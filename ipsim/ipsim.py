@@ -214,4 +214,9 @@ class ProcessModel(object):
         self._time.next()
         return self._evaluate(nodes_names)
     
+    def reset_time(self, dt):
+        """resets model time"""
+        #TODO: reset also nodes states if needed
+        self._time = self.Time(start_time=-dt, dt=dt)
+    
 #================================================================
