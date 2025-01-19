@@ -96,7 +96,8 @@ class ProcessNode(object):
 
         if not self._results:
             self.evaluate()
-
+            self._moment = self._model.time()
+                        
     def evaluate(self):
         """Evaluation method that must be reimplemented in childs.
            Default behaviour set all outputs to 0
