@@ -24,6 +24,7 @@ sys.path.append(os.path.join(os.path.dirname(__file__), "../ipsim/"))
 print(sys.path)
 
 from ipsim import *
+import random as rnd
 
 #----------------------------------------------------------------
 import numpy as np
@@ -50,12 +51,17 @@ from scipy.integrate import solve_ivp
 from copy import deepcopy
 
 #----------------------------------------------------------------
+#----------------------------------------------------------------
 from bokeh.io import curdoc
 from bokeh.layouts import column, row
-from bokeh.models import ColumnDataSource, Slider, TextInput, Button
+from bokeh.models import ColumnDataSource, Slider, Button, CheckboxGroup, Label
 from bokeh.plotting import figure
 from bokeh.client import push_session
 from bokeh.embed import server_session
+from bokeh.plotting import figure, curdoc
+from bokeh.models import ColumnDataSource, Range1d
+from bokeh.models.widgets import Div
+
 #----------------------------------------------------------------
 class ECSRTTest:
     Ea  = 72750     # activation energy J/gmol
@@ -133,7 +139,7 @@ class ExothermicContinuousStirredTankReactor0(ProcessNode):
         
         dt = self._model.dt()
 
-        t_eval = np.linspace(0, dt, 50)
+        t_eval = np.linspace(0, dt, 10)
         soln = solve_ivp(self, [min(t_eval), max(t_eval)], [cA, T, cB], t_eval=t_eval)
         
         cA = soln.y[0, :][-1]
@@ -147,26 +153,172 @@ class ExothermicContinuousStirredTankReactor0(ProcessNode):
         self.set_result("cA",cA)
         self.set_result("cB",cB)
         self.set_result("T",T)
-        
+
+class NoisySensor(Sensor):
+    def __init__(self, name, input_name, *, dev_prob = 0, dev_amp = 0):
+        super().__init__(name, input_name)
+        self._dev_prob = dev_prob
+        self._dev_amp = dev_amp
+        self._input_name = input_name
+
+    def evaluate(self):
+        value = self.inputs()[self._input_name]()
+        if (self._dev_prob > 0) and (self._dev_amp > 0):
+            prob = rnd.uniform(0,1)
+            if prob < self._dev_prob:
+                amp = rnd.uniform(-self._dev_amp, self._dev_amp)
+                value = value + amp
+                value = value if value > 0 else 0 
+                
+        self.set_result(self._input_name, value)
+
+    def change_value(self, name, value):
+        if name == "dev_prob":
+            self._dev_prob = value
+        if name == "dev_amp":
+            self._dev_amp = value
+
 def prepare_model(dt = 10.0/2000):    
     process_model = ProcessModel("test",dt=dt)
     process_model.add_node(ProcessInputNode("InletFeed"
                                          , {"Flowrate":100,"Concentration":1,"Temperature":350}))
     process_model.add_node(ProcessInputNode("Coolant"
-                                          , {"Temperature":305}))
+                                          , {"Temperature":290}))
     process_model.add_node(ExothermicContinuousStirredTankReactor0("ECSTR"))
     process_model.bond_nodes("ECSTR","q","InletFeed","Flowrate")
     process_model.bond_nodes("ECSTR","cAi","InletFeed","Concentration")
     process_model.bond_nodes("ECSTR","Ti","InletFeed","Temperature")
     process_model.bond_nodes("ECSTR","Tc","Coolant","Temperature")
     
+    process_model.add_node(NoisySensor("SensorA","cA"))
+    process_model.add_node(NoisySensor("SensorB","cB"))
+    process_model.add_node(NoisySensor("SensorT","T"))
+    
+    process_model.bond_nodes("SensorA","cA", "ECSTR", "cA")
+    process_model.bond_nodes("SensorB","cB", "ECSTR", "cB")
+    process_model.bond_nodes("SensorT","T", "ECSTR", "T")
+
+    sensorA =  process_model.nodes()["SensorA"]
+    sensorB =  process_model.nodes()["SensorB"]
+    sensorT =  process_model.nodes()["SensorT"]
+
+    sensorA.change_value("dev_prob", 1)
+    sensorA.change_value("dev_amp", 0.05)
+
+    sensorB.change_value("dev_prob", 1)
+    sensorB.change_value("dev_amp", 0.05)
+    
+    sensorT.change_value("dev_prob", 1)
+    sensorT.change_value("dev_amp", 10)
+
     return process_model
 
 #----------------------------------------------------------------
-dt = 0.01
+def run_model_steps_ex(process_model, Tcs, iterations_per_step): 
+    observed_nodes = ("SensorA","SensorB","SensorT",)
+
+    parameters_metadata = (
+          {"parameter":"cA"
+           , "range":(0,1)
+           , "units": ""
+           , "title":"Concentration of A"
+           , "sensor_node": "SensorA"}
+        , {"parameter":"cB"
+           , "range":(0,1)
+           , "units": ""
+           , "title":"Concentration of B"
+           , "sensor_node": "SensorB"}
+        , {  "parameter":"T"
+           , "range":(300,600)
+           , "units": "K"
+           , "title":"Temperature"
+           , "sensor_node": "SensorT" }
+    )
+
+    iterations = int(len(Tcs)*iterations_per_step)
+    x = np.empty((iterations,len(parameters_metadata)))
+    y = np.empty((iterations,1),dtype=np.dtype('B'))
+
+    Tci = -1
+    Tc  = 0
+    for _ in range(iterations):
+        if _ % iterations_per_step == 0:
+            Tci = 0 if Tci == -1 else Tci + 1
+            Tc = Tcs[Tci]                 
+            process_model.nodes()["Coolant"].change_value("Temperature", Tc)
+        state = process_model.next_state(observed_nodes)
+        data =  []
+        for metadata in parameters_metadata:
+             data.append(state[metadata['sensor_node']][metadata["parameter"]])
+
+        x[_] =  data
+        y[_] = 0 if (Tc < 304 or Tc > 307) else 1
+
+    return x, parameters_metadata, y
+
+def train_random_forest(x,y):
+    model = RandomForestClassifier(max_depth=2, random_state=0)
+    model.fit(x, y.ravel())
+    return model
+
+def show_model_statistics(y, y_pred, model_name):        
+    f_metrics = {"Accuracy":accuracy_score
+                ,"Precision":precision_score
+                ,"Recall":recall_score
+                ,"F1" : f1_score
+                ,"Cohens kappa": cohen_kappa_score
+                ,"ROC AUC": roc_auc_score
+                ,"Confusion matrix": confusion_matrix}
+    print(f"{model_name}:")
+    for metric in f_metrics:
+        try:
+            print(metric, f_metrics[metric](y, y_pred))
+        except Exception as e:
+            print(f"Metiric {metric}: {e}")
+
+def train_ml_model(train_func):
+    dt = 0.1
+    process_model = prepare_model(dt)
+    
+    sensorA =  process_model.nodes()["SensorA"]
+    sensorB =  process_model.nodes()["SensorB"]
+    sensorT =  process_model.nodes()["SensorT"]
+
+    sensorA.change_value("dev_prob", 1)
+    sensorA.change_value("dev_amp", 0.05)
+
+    sensorB.change_value("dev_prob", 1)
+    sensorB.change_value("dev_amp", 0.05)
+    
+    sensorT.change_value("dev_prob", 1)
+    sensorT.change_value("dev_amp", 10) 
+
+    observed_nodes = ("SensorA","SensorB","SensorT",)
+    for _ in range(200): # skip first iteration to reach steady-state 
+        process_model.next_state(observed_nodes)
+
+    x, metadata, y = run_model_steps_ex(process_model,[300, 303, 304, 305, 306, 308, 310], 200)
+    #show_data(x, metadata, dt)
+    count_true = 0
+    for yi in y:
+        if yi == 0:
+            count_true += 1
+    print(f"normal class: {count_true} faults: {len(y)-count_true} total: {len(y)}") 
+    x_train, x_test, y_train, y_test = train_test_split(x, y, test_size=0.5, random_state=42)
+
+    ml_model = train_func(x_train,y_train)
+    y_pred   = ml_model.predict(x_test)
+    show_model_statistics(y_test,y_pred, "")
+
+    return ml_model
+
+#----------------------------------------------------------------
+dt = 0.1
 ECSTR = prepare_model(dt)
+ML_MODEL = train_ml_model(train_random_forest)
 time_current = 0
 time_max = 60 
+USE_ML_MODEL = False
 
 #----------------------------------------------------------------
 # Set up data
@@ -191,10 +343,13 @@ plot_T = figure(height=200, width=800, title="Temperature",
 plot_T.line('x', 'y', source=source_T, line_width=3, line_alpha=0.6)
 
 reset_button = Button(label="Reset",button_type="primary")
-coolant_temperature = Slider(title="CoolantTemperature", value=305.0, start=300.0, end=310.0, step=0.5)
+coolant_temperature = Slider(title="CoolantTemperature", value=304.0, start=295.0, end=315.0, step=0.5)
+ml_detected_faults = Div(text=f"""<p>Faults Detected {0}</p>""", width=150, height=50)
+
 
 def reset():
     global time_current
+    global ECSTR
     ECSTR = prepare_model(dt)
     time_current = 0
     source_A.data=dict(x=[], y=[])
@@ -202,12 +357,21 @@ def reset():
     source_T.data=dict(x=[], y=[])
 
     a = coolant_temperature.value
+    print(f"reset temperature {a}")
     ECSTR.nodes()["Coolant"].change_value("Temperature",a)
+
+    for _ in range(200): # skip first iteration to reach steady-state 
+        ECSTR.next_state(('ECSTR',))
 
 def update_data(attrname, old, new):
     a = coolant_temperature.value
     ECSTR.nodes()["Coolant"].change_value("Temperature",a)
 
+def use_ml_model(attrname, old, new):
+    global USE_ML_MODEL
+    USE_ML_MODEL = False if len(new) == 0 else True
+    print(f"use ml model: {USE_ML_MODEL}")
+    
 def update():
     global time_current
     if time_current > time_max:
@@ -216,15 +380,25 @@ def update():
     points = int(1/dt)
     x = np.linspace(time_current,time_current+1,points)
     time_current = time_current + 1
-    
+
+    faults_detected = 0
     cAs = np.zeros(points)
     cBs = np.zeros(points)
     Ts = np.zeros(points)
+    faults_x = np.empty((1,3))
     for _ in range(points):
-        state = ECSTR.next_state(("ECSTR",))
-        cAs[_] = state['ECSTR']['cA']
-        cBs[_] = state['ECSTR']['cB']
-        Ts[_] = state['ECSTR']['T']
+        state = ECSTR.next_state(('SensorA', 'SensorB', 'SensorT'))
+        cAs[_] = state['SensorA']['cA']
+        cBs[_] = state['SensorB']['cB']
+        Ts[_] = state['SensorT']['T']
+        faults_x[0] = (state['SensorA']['cA'],state['SensorB']['cB'],state['SensorT']['T'],)
+        faults_pred = ML_MODEL.predict(faults_x)
+        faults_detected += faults_pred[0]
+        if (faults_detected==1) and USE_ML_MODEL:
+            coolant_temperature.value = 310
+            ECSTR.nodes()["Coolant"].change_value("Temperature",310)
+
+    ml_detected_faults.text = text=f"""<p>Faults Detected: {faults_detected}</p>"""
 
     new_data = dict(x=x, y=cAs)
     source_A.stream(new_data)
@@ -237,8 +411,24 @@ for w in [coolant_temperature]:
     w.on_change('value', update_data)
 reset_button.on_click(reset)
 
-inputs = column(coolant_temperature, reset_button)
-plots = column(plot_A,plot_B,plot_T)
+useMLModel = CheckboxGroup(labels=["Use ML Model", ], active=[])
+useMLModel.on_change('active', use_ml_model)
+
+ECSTR_logo = "https://upload.wikimedia.org/wikipedia/commons/thumb/b/be/Agitated_vessel.svg/500px-Agitated_vessel.svg.png"
+ldiv_image = Div(text=f"""<img src="{ECSTR_logo}" alt="div_image" width="300" height="400" >""", width=150, height=200)
+
+#----------------------------------------------------------------
+reset()
+inputs = column(coolant_temperature
+                , row(ml_detected_faults, useMLModel)
+                , ldiv_image)
+
+plots = column(plot_A
+               ,plot_B
+               ,plot_T)
+
 curdoc().add_root(row(inputs, plots, width=1024))
 curdoc().add_periodic_callback(update, 1000)
-curdoc().title = "ECSTR"
+curdoc().title = "Exotermic Continuous Stirred-Tank Reactor Model"
+
+#----------------------------------------------------------------
