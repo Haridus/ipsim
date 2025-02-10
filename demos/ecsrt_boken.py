@@ -54,12 +54,12 @@ from copy import deepcopy
 #----------------------------------------------------------------
 from bokeh.io import curdoc
 from bokeh.layouts import column, row
-from bokeh.models import ColumnDataSource, Slider, Button, CheckboxGroup, Label
+from bokeh.models import ColumnDataSource, Slider, Button, CheckboxGroup, Toggle
 from bokeh.plotting import figure
 from bokeh.client import push_session
 from bokeh.embed import server_session
 from bokeh.plotting import figure, curdoc
-from bokeh.models import ColumnDataSource, Range1d
+from bokeh.models import ColumnDataSource
 from bokeh.models.widgets import Div
 
 #----------------------------------------------------------------
@@ -256,8 +256,33 @@ def run_model_steps_ex(process_model, Tcs, iterations_per_step):
 
     return x, parameters_metadata, y
 
+ML_MODEL_LOGISTIC = "Logistic Regression"
+ML_MODEL_RF = "Random Forest"
+ML_MODEL_GB = "Gradient Boostins"
+ML_MODEL_ADAB = "Ada Boostins"
+
+def train_logistic(x,y):
+    model = LogisticRegression()
+    model.fit(x, y.ravel())
+    return model
+
 def train_random_forest(x,y):
     model = RandomForestClassifier(max_depth=2, random_state=0)
+    model.fit(x, y.ravel())
+    return model
+
+def train_gradient_boostins(x,y):
+    model = GradientBoostingClassifier(n_estimators=500, learning_rate=1.0,max_depth=1, random_state=0)
+    model.fit(x, y.ravel())
+    return model
+
+def train_ada_boostins(x,y):
+    model = AdaBoostClassifier(n_estimators=500, algorithm="SAMME", random_state=0)
+    model.fit(x, y.ravel())
+    return model
+
+def train_bagging(x,y):
+    model = BaggingClassifier(estimator=SVC(), n_estimators=10, random_state=0)
     model.fit(x, y.ravel())
     return model
 
@@ -276,7 +301,7 @@ def show_model_statistics(y, y_pred, model_name):
         except Exception as e:
             print(f"Metiric {metric}: {e}")
 
-def train_ml_model(train_func):
+def train_ml_models():
     dt = 0.1
     process_model = prepare_model(dt)
     
@@ -306,19 +331,28 @@ def train_ml_model(train_func):
     print(f"normal class: {count_true} faults: {len(y)-count_true} total: {len(y)}") 
     x_train, x_test, y_train, y_test = train_test_split(x, y, test_size=0.5, random_state=42)
 
-    ml_model = train_func(x_train,y_train)
-    y_pred   = ml_model.predict(x_test)
-    show_model_statistics(y_test,y_pred, "")
+    models = {ML_MODEL_LOGISTIC:train_logistic
+             ,ML_MODEL_RF:train_random_forest
+             ,ML_MODEL_GB:train_gradient_boostins
+             ,ML_MODEL_ADAB: train_ada_boostins
+             }
 
-    return ml_model
+    trained_models = {}
+    for title, func in models.items():
+        ml_model = func(x_train,y_train)
+        y_pred   = ml_model.predict(x_test)
+        show_model_statistics(y_test,y_pred, "")
+        trained_models[title] = ml_model
+
+    return trained_models
 
 #----------------------------------------------------------------
 dt = 0.1
 ECSTR = prepare_model(dt)
-ML_MODEL = train_ml_model(train_random_forest)
+ML_MODELS = train_ml_models()
 time_current = 0
 time_max = 60 
-USE_ML_MODEL = False
+USE_ML_MODEL = ""
 
 #----------------------------------------------------------------
 # Set up data
@@ -343,9 +377,20 @@ plot_T = figure(height=200, width=800, title="Temperature",
 plot_T.line('x', 'y', source=source_T, line_width=3, line_alpha=0.6)
 
 reset_button = Button(label="Reset",button_type="primary")
-coolant_temperature = Slider(title="CoolantTemperature", value=304.0, start=295.0, end=315.0, step=0.5)
-ml_detected_faults = Div(text=f"""<p>Faults Detected {0}</p>""", width=150, height=50)
+coolant_temperature = Slider(title="Coolant Temperature", value=304.0, start=295.0, end=350.0, step=0.5)
+ml_detected_faults_label = Div(text=f"""<p>Faults Detected:</p>""", width=200)
+ml_detected_faults = Div(text=f"""<p>{ML_MODEL_LOGISTIC:} {0}</p>
+                         <p>{ML_MODEL_RF:} {0}</p>
+                         <p>{ML_MODEL_GB:} {0}</p>
+                         <p>{ML_MODEL_ADAB:} {0}</p>
+                         """, width=200)
 
+ml_switch_label_faults = Div(text=f"""<p>Use Model:</p>""")
+no_model_toggle = Toggle(label="No Model", active=True)
+logistic_regression_toggle = Toggle(label="Logistic Regression", active=False)
+random_forest_toggle = Toggle(label="Random Forest", active=False )
+gradient_boosting_toggle = Toggle(label="Gradient Boostins", active=False)
+ada_boosting_toggle = Toggle(label="Ada Boostins", active=False)
 
 def reset():
     global time_current
@@ -373,7 +418,13 @@ def use_ml_model(attrname, old, new):
     print(f"use ml model: {USE_ML_MODEL}")
     
 def update():
+    global ML_MODELS
     global time_current
+    ml_models_list = ( ML_MODEL_LOGISTIC
+                     , ML_MODEL_RF
+                     , ML_MODEL_GB
+                     , ML_MODEL_ADAB, )
+    
     if time_current > time_max:
         reset()
 
@@ -381,7 +432,13 @@ def update():
     x = np.linspace(time_current,time_current+1,points)
     time_current = time_current + 1
 
-    faults_detected = 0
+    faults_detected = {
+                       ML_MODEL_LOGISTIC : 0
+                     , ML_MODEL_RF : 0
+                     , ML_MODEL_GB : 0
+                     , ML_MODEL_ADAB : 0,
+    }
+
     cAs = np.zeros(points)
     cBs = np.zeros(points)
     Ts = np.zeros(points)
@@ -392,13 +449,23 @@ def update():
         cBs[_] = state['SensorB']['cB']
         Ts[_] = state['SensorT']['T']
         faults_x[0] = (state['SensorA']['cA'],state['SensorB']['cB'],state['SensorT']['T'],)
-        faults_pred = ML_MODEL.predict(faults_x)
-        faults_detected += faults_pred[0]
-        if (faults_detected==1) and USE_ML_MODEL:
-            coolant_temperature.value = 310
-            ECSTR.nodes()["Coolant"].change_value("Temperature",310)
 
-    ml_detected_faults.text = text=f"""<p>Faults Detected: {faults_detected}</p>"""
+        for model_name in ml_models_list:
+            ml_model = ML_MODELS[model_name]
+            faults_pred = ml_model.predict(faults_x)
+            faults_detected[model_name] += faults_pred[0]
+
+            if (USE_ML_MODEL == model_name) and (faults_detected[model_name]==1):
+                coolant_temperature.value = coolant_temperature.value+1
+                ECSTR.nodes()["Coolant"].change_value("Temperature", coolant_temperature.value)
+
+    faults_detected_text = ""
+    for model_name in ml_models_list:
+        faults_detected_text += f"""<p>{model_name}: {faults_detected[model_name]}</p>"""
+        if (USE_ML_MODEL == model_name) and (faults_detected[model_name] == 0):
+            coolant_temperature.value = coolant_temperature.value-1
+            ECSTR.nodes()["Coolant"].change_value("Temperature", coolant_temperature.value)
+    ml_detected_faults.text = faults_detected_text
 
     new_data = dict(x=x, y=cAs)
     source_A.stream(new_data)
@@ -409,19 +476,87 @@ def update():
     
 for w in [coolant_temperature]:
     w.on_change('value', update_data)
-reset_button.on_click(reset)
 
 useMLModel = CheckboxGroup(labels=["Use ML Model", ], active=[])
 useMLModel.on_change('active', use_ml_model)
 
 ECSTR_logo = "https://upload.wikimedia.org/wikipedia/commons/thumb/b/be/Agitated_vessel.svg/500px-Agitated_vessel.svg.png"
-ldiv_image = Div(text=f"""<img src="{ECSTR_logo}" alt="div_image" width="300" height="400" >""", width=150, height=200)
+ldiv_image = Div(text=f"""<img src="{ECSTR_logo}" alt="div_image" width="300" height="400" >""")
+image_label = Div(text=f"""<p style="text-align: center"><a href="{ECSTR_logo}">Image source</a></p>""")
 
 #----------------------------------------------------------------
 reset()
+
+def not_use_ml_model(attrname, old, new):
+    global USE_ML_MODEL
+    if new == True:
+        #no_model_toggle.active = False
+        logistic_regression_toggle.active = False
+        random_forest_toggle.active = False
+        gradient_boosting_toggle.active = False
+        ada_boosting_toggle.active = False
+        USE_ML_MODEL = ""
+    else:
+        not_use_ml_model.active = True
+
+def use_logistic_regression_model(attrname, old, new):
+    global USE_ML_MODEL
+    if new == True:
+        no_model_toggle.active = False
+        #logistic_regression_toggle.active = False
+        random_forest_toggle.active = False
+        gradient_boosting_toggle.active = False
+        ada_boosting_toggle.active = False
+        USE_ML_MODEL = ML_MODEL_LOGISTIC
+
+def use_random_forest_model(attrname, old, new):
+    global USE_ML_MODEL
+    if new == True:
+        no_model_toggle.active = False
+        logistic_regression_toggle.active = False
+        #random_forest_toggle.active = False
+        gradient_boosting_toggle.active = False
+        ada_boosting_toggle.active = False
+        USE_ML_MODEL = ML_MODEL_RF
+
+def use_gradiest_boosting_model(attrname, old, new):
+    global USE_ML_MODEL
+    if new == True:
+        no_model_toggle.active = False
+        logistic_regression_toggle.active = False
+        random_forest_toggle.active = False
+        #gradient_boosting_toggle.active = False
+        ada_boosting_toggle.active = False
+        USE_ML_MODEL = ML_MODEL_GB
+
+def use_ada_boosting_model(attrname, old, new):
+    global USE_ML_MODEL
+    if new == True:
+        no_model_toggle.active = False
+        logistic_regression_toggle.active = False
+        random_forest_toggle.active = False
+        gradient_boosting_toggle.active = False
+        #ada_boosting_toggle.active = False
+        USE_ML_MODEL = ML_MODEL_ADAB
+
+no_model_toggle.on_change('active', not_use_ml_model)
+logistic_regression_toggle.on_change('active', use_logistic_regression_model)
+random_forest_toggle.on_change('active', use_random_forest_model)
+gradient_boosting_toggle.on_change('active', use_gradiest_boosting_model)
+ada_boosting_toggle.on_change('active', use_ada_boosting_model)
+
+
 inputs = column(coolant_temperature
-                , row(ml_detected_faults, useMLModel)
-                , ldiv_image)
+               , ml_detected_faults_label 
+               , ml_detected_faults
+               , ml_switch_label_faults
+               , row( no_model_toggle
+               , logistic_regression_toggle
+               , random_forest_toggle)
+               , row(gradient_boosting_toggle
+               , ada_boosting_toggle) 
+               , ldiv_image
+               , image_label)
 
 plots = column(plot_A
                ,plot_B
