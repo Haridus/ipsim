@@ -258,8 +258,8 @@ def run_model_steps_ex(process_model, Tcs, iterations_per_step):
 
 ML_MODEL_LOGISTIC = "Logistic Regression"
 ML_MODEL_RF = "Random Forest"
-ML_MODEL_GB = "Gradient Boostins"
-ML_MODEL_ADAB = "Ada Boostins"
+ML_MODEL_GB = "Gradient Boosting"
+ML_MODEL_ADAB = "AdaBoost"
 
 def train_logistic(x,y):
     model = LogisticRegression()
@@ -387,10 +387,10 @@ ml_detected_faults = Div(text=f"""<p>{ML_MODEL_LOGISTIC:} {0}</p>
 
 ml_switch_label_faults = Div(text=f"""<p>Use Model:</p>""")
 no_model_toggle = Toggle(label="No Model", active=True)
-logistic_regression_toggle = Toggle(label="Logistic Regression", active=False)
-random_forest_toggle = Toggle(label="Random Forest", active=False )
-gradient_boosting_toggle = Toggle(label="Gradient Boostins", active=False)
-ada_boosting_toggle = Toggle(label="Ada Boostins", active=False)
+logistic_regression_toggle = Toggle(label=ML_MODEL_LOGISTIC, active=False)
+random_forest_toggle = Toggle(label=ML_MODEL_RF, active=False )
+gradient_boosting_toggle = Toggle(label=ML_MODEL_GB, active=False)
+ada_boosting_toggle = Toggle(label=ML_MODEL_ADAB, active=False)
 
 def reset():
     global time_current
