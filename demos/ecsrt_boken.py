@@ -54,7 +54,7 @@ from copy import deepcopy
 #----------------------------------------------------------------
 from bokeh.io import curdoc
 from bokeh.layouts import column, row
-from bokeh.models import ColumnDataSource, Slider, Button, CheckboxGroup, Toggle
+from bokeh.models import ColumnDataSource, Slider, Button, CheckboxGroup, Toggle, Spinner
 from bokeh.plotting import figure
 from bokeh.client import push_session
 from bokeh.embed import server_session
@@ -377,15 +377,17 @@ plot_T = figure(height=200, width=800, title="Temperature",
 plot_T.line('x', 'y', source=source_T, line_width=3, line_alpha=0.6)
 
 reset_button = Button(label="Reset",button_type="primary")
-coolant_temperature = Slider(title="Coolant Temperature", value=304.0, start=295.0, end=350.0, step=0.5)
-ml_detected_faults_label = Div(text=f"""<p>Faults Detected:</p>""", width=200)
+coolant_temperature = Spinner(title="Coolant Temperature", value=304.0, low=298.0, high=350.0, step=0.5)
+#coolant_temperature = Slider(title="Coolant Temperature", value=304.0, start=298.0, end=350.0, step=0.5)
+
+ml_detected_faults_label = Div(text=f"""<p>Detected faults:</p>""", width=200)
 ml_detected_faults = Div(text=f"""<p>{ML_MODEL_LOGISTIC:} {0}</p>
                          <p>{ML_MODEL_RF:} {0}</p>
                          <p>{ML_MODEL_GB:} {0}</p>
                          <p>{ML_MODEL_ADAB:} {0}</p>
                          """, width=200)
 
-ml_switch_label_faults = Div(text=f"""<p>Use Model:</p>""")
+ml_switch_label_faults = Div(text=f"""<p>Fault detection model:</p>""")
 no_model_toggle = Toggle(label="No Model", active=True)
 logistic_regression_toggle = Toggle(label=ML_MODEL_LOGISTIC, active=False)
 random_forest_toggle = Toggle(label=ML_MODEL_RF, active=False )
@@ -438,6 +440,8 @@ def update():
                      , ML_MODEL_GB : 0
                      , ML_MODEL_ADAB : 0,
     }
+    
+    already_triggered = False
 
     cAs = np.zeros(points)
     cBs = np.zeros(points)
@@ -455,7 +459,8 @@ def update():
             faults_pred = ml_model.predict(faults_x)
             faults_detected[model_name] += faults_pred[0]
 
-            if (USE_ML_MODEL == model_name) and (faults_detected[model_name]==1):
+            if (USE_ML_MODEL == model_name) and (faults_detected[model_name]==1) and (not already_triggered):
+                already_triggered = True #prevent multiple triggers when fault detected is exactly 1
                 coolant_temperature.value = coolant_temperature.value+1
                 ECSTR.nodes()["Coolant"].change_value("Temperature", coolant_temperature.value)
 
@@ -463,8 +468,9 @@ def update():
     for model_name in ml_models_list:
         faults_detected_text += f"""<p>{model_name}: {faults_detected[model_name]}</p>"""
         if (USE_ML_MODEL == model_name) and (faults_detected[model_name] == 0):
-            coolant_temperature.value = coolant_temperature.value-1
-            ECSTR.nodes()["Coolant"].change_value("Temperature", coolant_temperature.value)
+            if coolant_temperature.value > 298:
+                coolant_temperature.value = coolant_temperature.value-1
+                ECSTR.nodes()["Coolant"].change_value("Temperature", coolant_temperature.value)
     ml_detected_faults.text = faults_detected_text
 
     new_data = dict(x=x, y=cAs)
