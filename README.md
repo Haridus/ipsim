@@ -53,9 +53,9 @@ To test the library, run the command `pytest ipsim/tests` from the root director
 
 To reproduce the results from the papers go to benchmarks folder.
 
-[benchmarks/tes_ml.ipynb] - implementation of simplified Tennessee Eastman problem (STEP) by Ricker (10.1016/0959-1524(93)80006-W) and experiment for paper @paper
+[benchmarks/tes_ml.ipynb](benchmarks/tes_ml.ipynb) - implementation of simplified Tennessee Eastman problem (STEP) by Ricker (10.1016/0959-1524(93)80006-W) and experiment for paper @paper
 
-[benchmarks/ecstr_detect_oscillation.ipynb] - implementation of Continuous Stirred-Tank Reactor(CSTR) and experiment for paper @paper
+[benchmarks/ecstr_detect_oscillation.ipynb](benchmarks/ecstr_detect_oscillation.ipynb) - implementation of Continuous Stirred-Tank Reactor(CSTR) and experiment for paper @paper
 
 ## Demos
-[Github/ecsrt_boken.py] - demo of control of CSTR model by ML model for paper @paper
+[Github/ecsrt_boken.py](Github/ecsrt_boken.py) - demo of control of CSTR model by ML model for paper @paper
