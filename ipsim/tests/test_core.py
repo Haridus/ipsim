@@ -3,7 +3,9 @@ import os
 import sys
 sys.path.append(os.path.join(os.path.dirname(__file__), "../")) 
 
-from ipsim.ipsim import *
+from ipsim import *
+
+import pytest
 
 #================================================================
 def test_value_sources_1():

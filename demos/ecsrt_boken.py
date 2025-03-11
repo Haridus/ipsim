@@ -19,9 +19,7 @@ in your browser.
 import os
 import sys
 import pathlib
-#sys.path.append(os.path.join(os.path.dirname(__file__), "../../../ipsim/ipsim/"))
 sys.path.append(os.path.join(os.path.dirname(__file__), "../ipsim/"))  
-print(sys.path)
 
 from ipsim import *
 import random as rnd
