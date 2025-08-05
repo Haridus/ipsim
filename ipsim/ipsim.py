@@ -12,7 +12,7 @@ class ValueSource(object):
         self._source = source
 
     def value(self):
-        """return some value"""
+        """return underlying value or value from underlying source"""
         if(self._source != None):
             return self._source()
         return self._value
@@ -20,6 +20,22 @@ class ValueSource(object):
     def __call__(self):
         """sinonim for get_value to support () call convention"""
         return self.value()
+    
+    def __add__(self, value):
+        """Reimplement + operator. Will only work if value type returned by value() also supports + operator"""
+        return self.value()+value
+
+    def __sub__(self, value):
+        """Reimplement - operator. Will only work if value type returned by value() also supports - operator"""
+        return self.value()-value
+    
+    def __mul__(self, value):
+        """Reimplement * operator. Will only work if value type returned by value() also supports * operator"""
+        return self.value()*value
+    
+    def __truediv__(self, value):
+        """Reimplement / operator. Will only work if value type returned by value() also supports / operator"""
+        return self.value() / value
 
 class ProcessVariable(ValueSource):
     """Class that represents process variable
