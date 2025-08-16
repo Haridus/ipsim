@@ -76,6 +76,12 @@ class States(VariablesCategory):
     def __init__(self, variables=None):
         super().__init__(variables)
 
+class Disturbances(VariablesCategory):
+    """Helper class to allow specifi desturbance varaiables as static class fields
+    """
+    def __init__(self, variables=None):
+        super().__init__(variables)
+
 class _Internal:
     """Helper class to store variables by categories as named entyties
     """
@@ -109,6 +115,7 @@ class ProcessNode(object):
         inputs  = None
         outputs = None
         states  = None
+        disturbances = None
 
         for name, value in cls.__dict__.items():
             if not name.startswith('_'):
@@ -118,8 +125,10 @@ class ProcessNode(object):
                     outputs = value
                 elif isinstance(value, States):
                     states = value
+                elif isinstance(value, Disturbances):
+                    disturbances = value
 
-        return inputs, outputs, states
+        return inputs, outputs, states, disturbances
 
     def __init__(self, name):
         self._name = name
@@ -131,8 +140,10 @@ class ProcessNode(object):
         self._u = _Internal()
         self._x = _Internal()
         self._o = _Internal()
+        self._e = _Internal()
         
-        inputs, outputs, states = self._collect_fields()
+        
+        inputs, outputs, states, disturbances = self._collect_fields()
         
         if inputs is not None:
             self.create_inputs(inputs.variables)
@@ -143,6 +154,10 @@ class ProcessNode(object):
         if states is not None:
             for variable_name in states.variables:
                 self._x.__dict__[variable_name] = object()
+
+        if disturbances is not None:
+            for variable_name in disturbances.variables:
+                self._e.__dict__[variable_name] = object()
 
     def name(self):
         """Return name of the node"""
@@ -358,9 +373,9 @@ class ProcessModel(object):
     def make_common_manipulator(affecting_pins_list):
         def __common_manipulator(model, action):
             nodes = model.nodes()
-            for _ in min( len(affecting_pins_list), action):
+            for _ in range(min(len(affecting_pins_list), len(action))):
                 node_name, pin_name = affecting_pins_list[_]
-                nodes[node_name].change_value(pin_name, action[_])
+                nodes[node_name].change_state_value(pin_name, action[_])
         return __common_manipulator
     
     @staticmethod

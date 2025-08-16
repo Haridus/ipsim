@@ -56,7 +56,7 @@ class STEPReactorNode(ProcessNode):
         self.config = config
         self.solver = solver
         self._x.N  = deepcopy(N)
-        self._x.X = deepcopy(X)
+        self._x.X  = deepcopy(X)
     
     def ode(self, x, u, c):
         nA, nB, nC, nD, uX1, uX2, uX3, uX4 = x
@@ -168,6 +168,7 @@ class STEP(ProcessModel):
                , dt = 0.1
                , init_state = None 
                , observer = None
+               , manipulator = None
                , config = STEPReactorNode.Config()):
         
         if observer is None:
@@ -186,7 +187,10 @@ class STEP(ProcessModel):
                        , P, Vl ]
             observer = step_observer
 
-        super().__init__("STEP", dt = dt, observer = observer)
+        if manipulator is None:
+            manipulator = ProcessModel.make_common_manipulator([("ValvesControl","X"), ])
+
+        super().__init__("STEP", dt = dt, observer = observer, manipulator = manipulator)
         
         F1 = STEPFlow([0.485, 0.005,0.51,0],373, 330.46)
         F2 = STEPFlow([1,0,0,0],373,22.46)
@@ -195,7 +199,7 @@ class STEP(ProcessModel):
         flow_1 = ProcessInputNode("Stream1", {"F":F1})
         flow_2 = ProcessInputNode("Stream2", {"F":F2})
         valve_control = ProcessInputNode("ValvesControl", {"X":uX})
-        reactor   = STEPReactorNode("STEP", solver=solve_ivp, config=config ) if (init_state is None) else STEPReactorNode ("STEP", solver=solve_ivp, config=config, N = init_state["N"], X = init_state["X"] )
+        reactor   = STEPReactorNode("STEP", solver=solve_ivp, config=config) if (init_state is None) else STEPReactorNode ("STEP", solver=solve_ivp, config=config, N = init_state["N"], X = init_state["X"] )
         
         self.add_node(flow_1)
         self.add_node(flow_2)
