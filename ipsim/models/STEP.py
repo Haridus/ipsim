@@ -1,11 +1,10 @@
 import os
 import sys
-sys.path.append(os.path.join(os.path.dirname(__file__), "../ipsim")) 
+sys.path.append(os.path.join(os.path.dirname(__file__), "../../ipsim")) 
 
 from ipsim import *
 from numpy import sqrt, pow
 from copy import deepcopy
-from scipy.integrate import solve_ivp
 
 #==========================================================
 def threashold_value(v, *, min = 0, max = 1):
@@ -152,7 +151,8 @@ class STEPReactorNode(ProcessNode):
                         , [0, self._model.dt()]
                         , [ self._x.N[STEPFlow.A], self._x.N[STEPFlow.B], self._x.N[STEPFlow.C], self._x.N[STEPFlow.D]
                           , self._x.X[0], self._x.X[1], self._x.X[2], self._x.X[3] ]
-                        , args = ( (F1, F2, uX1, uX2, uX3, uX4, ), self.config) )
+                        , (F1, F2, uX1, uX2, uX3, uX4, )
+                        , self.config )
 
         N[STEPFlow.A] = threashold_value_min(soln.y[0, :][-1])  
         N[STEPFlow.B] = threashold_value_min(soln.y[1, :][-1])  

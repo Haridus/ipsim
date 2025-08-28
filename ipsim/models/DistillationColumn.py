@@ -7,10 +7,6 @@ from ipsim import *
 import numpy as np
 from copy import deepcopy
 
-from scipy.integrate import solve_ivp
-
-import matplotlib.pyplot as plt
-
 #=============================================================================
 class DistillationColumnNode(ProcessNode):
     I  = Inputs(  ("rr", "x_feed", "feed",) )
@@ -77,8 +73,8 @@ class DistillationColumnNode(ProcessNode):
         soln = self.solver(lambda t, x, u, c: self.ode(x, u, c)
                         , [0, self._model.dt()]
                         , self._x.x
-                        , args = ( (self._u.rr(), self._u.feed(), self._u.x_feed(), )
-                                 , self.config) )
+                        , (self._u.rr(), self._u.feed(), self._u.x_feed(), )
+                        , self.config )
         
         res = soln.y[:,-1]
         self._x.x = res
