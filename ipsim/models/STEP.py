@@ -3,7 +3,7 @@ import sys
 sys.path.append(os.path.join(os.path.dirname(__file__), "../../ipsim")) 
 
 from ipsim import *
-from numpy import sqrt, pow
+from numpy import sqrt, power
 from copy import deepcopy
 
 #==========================================================
@@ -84,7 +84,7 @@ class STEPReactorNode(ProcessNode):
         VLpct=Vd/c.VlMax
         _u4=c.u4bar+c.KcVL*(u4-VLpct)
 
-        R =    c.k0*pow(pa,1.2)*pow(pc,0.4) if ((pa > 0) and (pc > 0)) else 0
+        R =    c.k0*power(pa,1.2)*power(pc,0.4) if ((pa > 0) and (pc > 0)) else 0
         dNa = (F1.Comp[STEPFlow.A]*Fi1 + F2.Comp[STEPFlow.A]*Fi2 - Fi3*pa/P - R)
         dNb = (F1.Comp[STEPFlow.B]*Fi1 - Fi3*pb/P)
         dNc = (F1.Comp[STEPFlow.C]*Fi1 - Fi3*pc/P - R)
