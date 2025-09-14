@@ -17,7 +17,7 @@ pip install git+https://github.com/Haridus/ipsim.git
 
 from ipsim import ProcessModel, ProcessInputNode
 
-class DublingSensor(Sensor):
+class DoublingSensor(Sensor):
         def __init__(self, name, input_name):
             super().__init__(name, input_name)
 
@@ -30,7 +30,7 @@ def prepare_model(dt = 0.01):
     model = ProcessModel("test", dt=0.01)
     model.add_node(ProcessInputNode("Reservoir_Coolant",{"Temperature":300}))
     model.add_node(Sensor("R1CTS1","Temperature"))
-    model.add_node(DublingSensor("R1CTS2","Temperature"))
+    model.add_node(DoublingSensor("R1CTS2","Temperature"))
     model.bond_nodes("R1CTS1","Temperature", "Reservoir_Coolant", "Temperature")
     model.bond_nodes("R1CTS2","Temperature", "Reservoir_Coolant", "Temperature")
 
