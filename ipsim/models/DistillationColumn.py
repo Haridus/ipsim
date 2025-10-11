@@ -67,9 +67,6 @@ class DistillationColumnNode(ProcessNode):
         return xdot
     
     def evaluate(self):   
-        self.set_result("xd",self._x.x[0])
-        self.set_result("xb",self._x.x[31])
-
         soln = self.solver(lambda t, x, u, c: self.ode(x, u, c)
                         , [0, self._model.dt()]
                         , self._x.x
@@ -78,6 +75,29 @@ class DistillationColumnNode(ProcessNode):
         
         res = soln.y[:,-1]
         self._x.x = res
+
+        self.set_result("xd",self._x.x[0])
+        self.set_result("xb",self._x.x[31])
+
+class DistillationColumnFeed(ProcessNode):
+    O  = Outputs( ("feed", "x",) )
+    U  = States(  ("feed", "x",) )
+
+    def __init__(self, name):
+        import scipy
+        import itertools
+        super().__init__(name)
+        
+        num_x_feed, den_x_feed = scipy.signal.butter(2, 0.05)
+        self.dis_x = itertools.cycle(scipy.signal.lfilter(num_x_feed, den_x_feed, np.random.normal(0, 0.05, 5000)))
+        self.disruptor = lambda: next(self.dis_x)
+        self._x.feed = 1
+        self._x.x    = 0.42
+
+        self.set_result("feed",self._x.feed)
+        
+    def _evaluate(self):
+        self.set_result("x", self._x.x+self.disruptor())
 
 class DistillationColumn(ProcessModel):
     def __init__( self, solver, *
@@ -89,7 +109,7 @@ class DistillationColumn(ProcessModel):
                         , dt = dt
                         , observer = observer, manipulator = manipulator )
 
-        feed   = ProcessInputNode("Feed", {"feed":1,"x":0.42})
+        feed   = DistillationColumnFeed("Feed")
         reflux = ProcessInputNode("Reflux", {"ratio":3})
         column = DistillationColumnNode("DistillationColumn", solver=solver) if (init_state is None) else DistillationColumnNode("DistillationColumn",x=init_state["x"], solver=solver)
 
