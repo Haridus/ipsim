@@ -93,11 +93,14 @@ class DistillationColumnFeed(ProcessNode):
         self.disruptor = lambda: next(self.dis_x)
         self._x.feed = 1
         self._x.x    = 0.42
-
-        self.set_result("feed",self._x.feed)
-        
+                
     def _evaluate(self):
-        self.set_result("x", self._x.x+self.disruptor())
+        if (self._model is None) or (self._model.time() != self._current_time):
+            self._results.clear()
+
+        if not self._results:
+            self.set_result("x", self._x.x+self.disruptor())
+            self.set_result("feed",self._x.feed)
 
 class DistillationColumn(ProcessModel):
     def __init__( self, solver, *
