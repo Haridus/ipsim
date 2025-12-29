@@ -1,9 +1,4 @@
-import os
-import sys
-sys.path.append(os.path.join(os.path.dirname(__file__), "../ipsim")) 
-
 from ipsim import *
-
 import numpy as np
 from copy import deepcopy
 

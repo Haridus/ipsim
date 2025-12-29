@@ -1,11 +1,5 @@
-import os
-import sys
-sys.path.append(os.path.join(os.path.dirname(__file__), "../../ipsim")) 
-
 from ipsim import *
-
 from numpy import exp, seterr, pi
-import numpy as np
 
 #====================================================================================
 class ECSTR_S0_Node(ProcessNode):

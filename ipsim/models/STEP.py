@@ -1,7 +1,3 @@
-import os
-import sys
-sys.path.append(os.path.join(os.path.dirname(__file__), "../../ipsim")) 
-
 from ipsim import *
 from numpy import sqrt, power
 from copy import deepcopy
@@ -199,7 +195,7 @@ class STEP(ProcessModel):
         flow_1 = ProcessInputNode("Stream1", {"F":F1})
         flow_2 = ProcessInputNode("Stream2", {"F":F2})
         valve_control = ProcessInputNode("ValvesControl", {"X":uX})
-        reactor   = STEPReactorNode("STEP", solver=solve_ivp, config=config) if (init_state is None) else STEPReactorNode ("STEP", solver=solve_ivp, config=config, N = init_state["N"], X = init_state["X"] )
+        reactor   = STEPReactorNode("STEP", solver=solver, config=config) if (init_state is None) else STEPReactorNode ("STEP", solver=solver, config=config, N = init_state["N"], X = init_state["X"] )
         
         self.add_node(flow_1)
         self.add_node(flow_2)
