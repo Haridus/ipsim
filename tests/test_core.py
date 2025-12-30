@@ -1,10 +1,5 @@
 #================================================================
-import os
-import sys
-sys.path.append(os.path.join(os.path.dirname(__file__), "../")) 
-
 from ipsim import *
-
 import pytest
 
 #================================================================
@@ -24,7 +19,7 @@ def test_value_sources_3():
 def test_model_1():
     pmodel = ProcessModel("test",dt=0.01)
     pmodel.add_node(ProcessInputNode("TestReservoir1", {"Temperature":300}))
-    assert pmodel.next_state( ("TestReservoir1", ))["TestReservoir1"]["Temperature"] == 300
+    assert pmodel.next_state( nodes_names=["TestReservoir1", ])["TestReservoir1"]["Temperature"] == 300
 
 #----------------------------------------------------------------
 class DublingSensor(Sensor):
@@ -46,7 +41,7 @@ def test_model_2():
     processModel.bond_nodes("R1CTS2","Temperature", "Reservoir1_Coolant", "Temperature")
 
     for i in range(5):
-        state = processModel.next_state(("R1CTS1","R1CTS2"))
+        state = processModel.next_state(nodes_names=["R1CTS1","R1CTS2"])
         assert state["R1CTS1"]["Temperature"] == 300
         assert state["R1CTS2"]["Temperature"] == 600
 
@@ -60,7 +55,8 @@ def test_model_3():
 
     for i in range(10):
         inode = processModel.nodes()["Reservoir1_Coolant"]
-        inode.change_value("Temperature",inode.value("Temperature")+1)
-        state = processModel.next_state(("R1CTS1","R1CTS2"))
+        inode.change_state_value("Temperature",inode.value("Temperature")+1)
+        state = processModel.next_state(nodes_names=["R1CTS1","R1CTS2"])
         assert state["R1CTS1"]["Temperature"] == inode.value("Temperature")
         assert state["R1CTS2"]["Temperature"] == inode.value("Temperature")*2
+        

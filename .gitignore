@@ -2,3 +2,8 @@
 /ipsim/__pycache__
 /benchmarks/.ipynb_checkpoints
 /ipsim/models/__pycache__
+examples/.ipynb_checkpoints/__init__-checkpoint.py
+examples/.ipynb_checkpoints/ECSTR_example-checkpoint.ipynb
+examples/.ipynb_checkpoints/ECSTR_S0_example-checkpoint.ipynb
+tests/__pycache__/__init__.cpython-39.pyc
+tests/__pycache__/test_core.cpython-39-pytest-8.4.2.pyc
