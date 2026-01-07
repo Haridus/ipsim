@@ -22,8 +22,8 @@ class STEPExFlow:
         self.F    = self.Fn  # effective flow
 
 class STEPExReactorNode(ProcessNode):
-    I  = Inputs(  ("F1", "F2", "X", "D") )
-    O  = Outputs( ("f1", "f2", "F3", "F4", "X", "P","Vl") )
+    I  = Inputs(  ("F1", "F2", "X", "D",) )
+    O  = Outputs( ("f1", "f2", "F3", "F4", "X", "P","Vl",) )
     U  = States(  ("N", "X", ) )
 
     class Config:
@@ -54,8 +54,8 @@ class STEPExReactorNode(ProcessNode):
         self._x.X  = deepcopy(X)
     
     def ode(self, x, u, c):
-        nA, nB, nC, nD, uX1, uX2, uX3, uX4, D = x
-        F1, F2, u1, u2, u3, u4 = u
+        nA, nB, nC, nD, uX1, uX2, uX3, uX4 = x
+        F1, F2, u1, u2, u3, u4, D = u
         
         uX1 = threashold_value(uX1)
         uX2 = threashold_value(uX2)
@@ -82,7 +82,7 @@ class STEPExReactorNode(ProcessNode):
 
         yA1_ef = threashold_value(F1.Comp[STEPExFlow.A] - D[0] - 0.5*D[1])
         yB1_ef = threashold_value(F1.Comp[STEPExFlow.B] + D[1])
-        yC1_ef = threashold_value(F1.Comp[STEPExFlow.B] + D[0] - 0.5*D[1])
+        yC1_ef = threashold_value(F1.Comp[STEPExFlow.C] + D[0] - 0.5*D[1])
 
         R =    c.k0*power(pa,1.2)*power(pc,0.4)*D[2] if ((pa > 0) and (pc > 0)) else 0
         dNa = (yA1_ef*Fi1 + F2.Comp[STEPExFlow.A]*Fi2 - Fi3*pa/P - R)
@@ -94,14 +94,14 @@ class STEPExReactorNode(ProcessNode):
         duX2 = D[6]*(u2 - uX2) /c.thau_v
         duX3 = D[7]*(u3 - uX3) /c.thau_v
         duX4 = D[8]*(_u4 - uX4)/c.thau_v
-        
+
         return [dNa,dNb,dNc,dNd,duX1,duX2,duX3,duX4]
 
     def evaluate(self):
         dt = self._model.dt()
         N = self._x.N
         X = self._x.X
-        D = self._x.D
+        D = self._u.D()
 
         nA = N[STEPExFlow.A]
         nB = N[STEPExFlow.B]
@@ -170,7 +170,7 @@ class STEPEx(ProcessModel):
                , init_state = None 
                , observer = None
                , manipulator = None
-               , config = STEPReactorNode.Config()):
+               , config = STEPExReactorNode.Config()):
         
         if observer is None:
             def step_observer(model, state):
@@ -207,12 +207,13 @@ class STEPEx(ProcessModel):
         self.add_node(flow_1)
         self.add_node(flow_2)
         self.add_node(valve_control)
-        self.add_node(reactor)      
+        self.add_node(disturbances_control)
+        self.add_node(reactor)
 
         self.bond_pins(reactor._u.F1 , flow_1._o.F)
         self.bond_pins(reactor._u.F2 , flow_2._o.F)
         self.bond_pins(reactor._u.X  , valve_control._o.X)
-        self.bond_pins(reactor._u.D  , valve_control._o.D)
+        self.bond_pins(reactor._u.D  , disturbances_control._o.D)
 
         output_names = reactor.outputs()
         for oname in output_names:
